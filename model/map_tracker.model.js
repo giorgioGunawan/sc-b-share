@@ -45,11 +45,11 @@ MapTracker.createMapTracker = (newTracker, result) => {
     // less than 8 AM or more than 6 PM or day is sunday, return early
 
     // Check if company_id is 38 (logistindo)
-    if (mapTrackerBody.company_id == 38 || mapTrackerBody.company_id == 30) {
+    if (mapTrackerBody.company_id == 38 || mapTrackerBody.company_id == 31) {
       const currentTime = momentTz().tz('Asia/Jakarta'); // Get current time in WIB timezone
       // Check if the current time is before 8 AM, after 6 PM, or if it's Sunday
       if (
-        currentTime.hour() < 7 ||     // Before 8 AM
+        currentTime.hour() < 8 ||     // Before 8 AM
         currentTime.hour() >= 18 ||   // After 6 PM
         currentTime.day() === 0       // Sunday (Sunday is represented as 0)
       ) {

@@ -8,6 +8,8 @@ const Absent = function() {
 Absent.getAllAbsent = (body, result) => {
     sql.query(`
         SELECT a.*, u.full_name FROM absent a
+        LEFT JOIN company c
+        ON a.company_id = c.company_id
         LEFT JOIN user u
         ON a.user_id = u.user_id
         WHERE a.company_id = ${body?.company_id}
@@ -25,11 +27,76 @@ Absent.getAllAbsent = (body, result) => {
                 :
                 ''
         }
+        ${
+            body?.full_name
+              ?
+              `AND (u.full_name LIKE '%${body?.full_name}%')`
+              :
+              ''
+        }
+        ${
+            body?.location_checkin === 'onsite'
+              ?
+              `AND SQRT(POW(a.check_in_lat - c.latitude, 2) + POW(a.check_in_long - c.longitude, 2)) <= 0.0045`
+              :
+              ''
+        }
+        ${
+            body?.location_checkin === 'offsite'
+              ?
+              `AND SQRT(POW(a.check_in_lat - c.latitude, 2) + POW(a.check_in_long - c.longitude, 2)) > 0.0045`
+              :
+              ''
+        }
+        ${
+            body?.location_checkout === 'onsite'
+              ?
+              `AND SQRT(POW(a.check_out_lat - c.latitude, 2) + POW(a.check_out_long - c.longitude, 2)) <= 0.0045`
+              :
+              ''
+        }
+        ${
+            body?.location_checkout === 'offsite'
+              ?
+              `AND SQRT(POW(a.check_out_lat - c.latitude, 2) + POW(a.check_out_long - c.longitude, 2)) > 0.0045`
+              :
+              ''
+        }
+        ${
+            body?.absent === 'checkin'
+              ?
+              `AND (a.check_in_datetime IS NOT null) AND (a.check_out_datetime IS null)`
+              :
+              ''
+        }
+        ${
+            body?.absent === 'checkout'
+              ?
+              `AND (a.check_out_datetime IS NOT null)`
+              :
+              ''
+        }
+        ${
+            body?.late === 'yes'
+              ?
+              `AND a.is_late = 1`
+              :
+              ''
+        }
+        ${
+            body?.late === 'no'
+              ?
+              `AND a.is_late = 0`
+              :
+              ''
+        }
         ORDER by a.check_in_datetime DESC ${body.limit ? `LIMIT ${body.limit}` : ''} ${body.offset ? `OFFSET ${body.offset}` : ''}
         `
         , (err, res) => {
             sql.query(`
             SELECT COUNT(*) FROM absent a
+            LEFT JOIN company c
+            ON a.company_id = c.company_id
             LEFT JOIN user u
             ON a.user_id = u.user_id
             WHERE a.company_id = ${body?.company_id}
@@ -46,6 +113,69 @@ Absent.getAllAbsent = (body, result) => {
                     `AND (a.check_in_datetime <= '${body?.end_date}')`
                     :
                     ''
+            }
+            ${
+                body?.full_name
+                  ?
+                  `AND (u.full_name LIKE '%${body?.full_name}%')`
+                  :
+                  ''
+            }
+            ${
+                body?.location_checkin === 'onsite'
+                  ?
+                  `AND SQRT(POW(a.check_in_lat - c.latitude, 2) + POW(a.check_in_long - c.longitude, 2)) <= 0.0045`
+                  :
+                  ''
+            }
+            ${
+                body?.location_checkin === 'offsite'
+                  ?
+                  `AND SQRT(POW(a.check_in_lat - c.latitude, 2) + POW(a.check_in_long - c.longitude, 2)) > 0.0045`
+                  :
+                  ''
+            }
+            ${
+                body?.location_checkout === 'onsite'
+                  ?
+                  `AND SQRT(POW(a.check_out_lat - c.latitude, 2) + POW(a.check_out_long - c.longitude, 2)) <= 0.0045`
+                  :
+                  ''
+            }
+            ${
+                body?.location_checkout === 'offsite'
+                  ?
+                  `AND SQRT(POW(a.check_out_lat - c.latitude, 2) + POW(a.check_out_long - c.longitude, 2)) > 0.0045`
+                  :
+                  ''
+            }
+            ${
+                body?.absent === 'checkin'
+                  ?
+                  `AND (a.check_in_datetime IS NOT null) AND (a.check_out_datetime IS null)`
+                  :
+                  ''
+            }
+            ${
+                body?.absent === 'checkout'
+                  ?
+                  `AND (a.check_out_datetime IS NOT null)`
+                  :
+                  ''
+            }
+            ${
+                body?.late === 'yes'
+                  ?
+                  `AND a.is_late = 1`
+                  :
+                  ''
+            }
+            ${
+                body?.late === 'no'
+                  ?
+                  `AND a.is_late = 0`
+                  :
+                  ''
             }
             `, (errTotal, total) => {
                 if (err) {
@@ -94,8 +224,13 @@ Absent.getAbsent = (body, result) => {
 };
 
 Absent.getAbsentV2 = (body, result) => {
+    console.log(body, 'bodyyyyy')
     sql.query(`
-        SELECT id, check_in_datetime, check_out_datetime FROM absent WHERE user_id = ${body?.user_id} AND check_in_datetime LIKE '%${moment(new Date(body.date)).format('YYYY-MM-DD')}%'
+        SELECT a.*, c.latitude, c.longitude, c.last_absent_time, c.absent_feature FROM company c
+        LEFT OUTER JOIN absent a
+        ON a.company_id = c.company_id
+        AND a.user_id = ${body?.user_id} AND a.check_in_datetime LIKE '%${moment(new Date(body.date)).format('YYYY-MM-DD')}%'
+        WHERE c.company_id = ${body.company_id}
         `, (err, absentRes) => {
             if (err) {
                 const error = {
@@ -104,17 +239,22 @@ Absent.getAbsentV2 = (body, result) => {
                 result(error, null);
                 return;
             }
-            sql.query(`SELECT absent_feature FROM company WHERE company_id = ${body?.company_id}`
-            , (err, companyRes) => {
-                console.log(companyRes)
-                const absent_feature = !!companyRes?.[0]?.absent_feature?.readUInt8()
-                result(null, {
-                    id: absentRes?.[0]?.id || null,
-                    check_in_datetime: absentRes?.[0]?.check_in_datetime || null, 
-                    check_out_datetime: absentRes?.[0]?.check_out_datetime || null,
-                    absent_feature
-                });
-            })
+            console.log(absentRes, body.company_id, 'absentRes')
+            const absent_feature = !!absentRes?.[0]?.absent_feature?.readUInt8()
+            result(null, {
+                id: absentRes?.[0]?.id || null,
+                check_in_lat: absentRes?.[0]?.check_in_lat || null, 
+                check_in_long: absentRes?.[0]?.check_in_long || null,
+                check_out_lat: absentRes?.[0]?.check_out_lat || null, 
+                check_out_long: absentRes?.[0]?.check_out_long || null,
+                check_in_datetime: absentRes?.[0]?.check_in_datetime || null, 
+                check_out_datetime: absentRes?.[0]?.check_out_datetime || null,
+                overtime_notes: absentRes?.[0]?.overtime_notes || null,
+                last_absent_time: absentRes?.[0]?.last_absent_time || null,
+                company_lat: absentRes?.[0]?.latitude || null, 
+                company_long: absentRes?.[0]?.longitude || null,
+                absent_feature
+            });
         }
     )
 };
@@ -224,9 +364,9 @@ Absent.getAllCompanyAbsentFeature = (result) => {
     )
 };
 
-Absent.updateAbsentFeature = ({absent_feature, company_id}, result) => {
-    sql.query("UPDATE `company` SET absent_feature = ? WHERE company_id = ?",
-        [absent_feature, company_id],
+Absent.updateAbsentFeature = ({absent_feature, address, latitude, longitude, company_id, last_absent_time}, result) => {
+    sql.query("UPDATE `company` SET absent_feature = ?, address = ?, latitude = ?, longitude = ?, last_absent_time = ? WHERE company_id = ?",
+        [absent_feature, address, latitude, longitude, last_absent_time, company_id],
         (err, res) => {
             if (err) {
                 console.log("error: ", err);
@@ -239,7 +379,7 @@ Absent.updateAbsentFeature = ({absent_feature, company_id}, result) => {
                 result({ message: "not found" }, null);
                 return;
               }
-              result(null, !!absent_feature);
+              result(null, !!res.affectedRows);
         }
     )
 };

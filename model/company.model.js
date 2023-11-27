@@ -66,7 +66,13 @@ Company.getCompanyByID = (company_id, result) => {
       result(null, err);
       return;
     }
-    result(null, res[0]);
+    const data = { ...res[0] };
+    Object.keys(res[0] || {})?.forEach?.(key => {
+      if (Buffer.isBuffer(data?.[key])) {
+        data[key] = !!data[key].readUInt8()
+      }
+    });
+    result(null, data);
   });
 };
 

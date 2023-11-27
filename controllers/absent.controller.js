@@ -10,6 +10,10 @@ exports.getAllAbsent = (req, res) => {
         full_name: req.body.full_name,
         start_date: req.body.start_date,
         end_date: req.body.end_date,
+        location_checkin: req.body.location_checkin,
+        location_checkout: req.body.location_checkout,
+        absent: req.body.absent,
+        late: req.body.late,
     }
     Absent.getAllAbsent(body, (err, data) => {
         if (err) {
@@ -75,6 +79,7 @@ exports.checkin = (req, res) => {
         check_in_image: req.body.image,
         check_in_lat: req.body.lat,
         check_in_long: req.body.long,
+        is_late: req.body.is_late ? 1 : 0
     }
     Absent.checkin(body, (err, data) => {
         if (err) {
@@ -136,6 +141,10 @@ exports.updateAbsentFeature = (req, res) => {
     const body = {
         company_id: req.body.company_id,
         absent_feature: req.body.absent_feature ? 1 : 0,
+        address: req.body.address,
+        latitude: req.body.latitude,
+        longitude: req.body.longitude,
+        last_absent_time: req.body.last_absent_time,
     }
     Absent.updateAbsentFeature(body, (err, data) => {
         if (err) {
